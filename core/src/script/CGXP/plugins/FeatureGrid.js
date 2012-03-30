@@ -280,6 +280,11 @@ cgxp.plugins.FeatureGrid = Ext.extend(gxp.plugins.Tool, {
                 this.tabpan.doLayout();
             }
         }.createDelegate(this));
+        
+        function isEmpty(ob){
+            for(var i in ob){ if(ob.hasOwnProperty(i)){return false;}}
+            return true;
+        }
 
         this.events.on('queryresults', function(features) {
             // if no feature do nothing
@@ -290,94 +295,96 @@ cgxp.plugins.FeatureGrid = Ext.extend(gxp.plugins.Tool, {
             var currentType = {}, feature;
             for (var i = 0, len = features.length ; i < len ; i++) {
                 feature = features[i];
-                if (!feature.geometry && feature.bounds) {
-                    feature.geometry = feature.bounds.toGeometry();
-                }
-
-                feature.style = {display: 'none'};
-                currentType[feature.type] = true;
-
-                if (!this.control) {
-                    this.control = new OpenLayers.Control.SelectFeature(this.vectorLayer, {
-                        toggle: true,
-                        multiple: true,
-                        multipleKey: (Ext.isMac ? "metaKey" : "ctrlKey")
-                    });
-                    map.addControl(this.control);
-                    this.control.handlers.feature.stopDown = false;
-                } else {
-                    this.control.activate();
-                }
-
-                if (this.gridByType[feature.type] === undefined) {
-                    var fields = [];
-                    var columns = [];
-                    for (var attribute in feature.attributes) {
-                        fields.push({name: attribute, type: 'string'});
-                        columns.push({header: OpenLayers.i18n(attribute), dataIndex: attribute});
+                if (!isEmpty(feature.attributes)) {
+                    if (!feature.geometry && feature.bounds) {
+                        feature.geometry = feature.bounds.toGeometry();
                     }
 
-                    var store = new GeoExt.data.FeatureStore({
-                        layer: this.vectorLayer,
-                        fields: fields
-                    });
+                    feature.style = {display: 'none'};
+                    currentType[feature.type] = true;
 
-                
-                    var grid = new Ext.grid.GridPanel({
-                        store: store,
-                        viewConfig: {
-                            // we add an horizontal scroll bar in case 
-                            // there are too many attributes to display:
-                            forceFit: (columns.length < 9)
-                        },
-                        colModel: new Ext.grid.ColumnModel({
-                            defaults: {
-                                sortable: true
+                    if (!this.control) {
+                        this.control = new OpenLayers.Control.SelectFeature(this.vectorLayer, {
+                            toggle: true,
+                            multiple: true,
+                            multipleKey: (Ext.isMac ? "metaKey" : "ctrlKey")
+                        });
+                        map.addControl(this.control);
+                        this.control.handlers.feature.stopDown = false;
+                    } else {
+                        this.control.activate();
+                    }
+
+                    if (this.gridByType[feature.type] === undefined) {
+                        var fields = [];
+                        var columns = [];
+                        for (var attribute in feature.attributes) {
+                            fields.push({name: attribute, type: 'string'});
+                            columns.push({header: OpenLayers.i18n(attribute), dataIndex: attribute});
+                        }
+
+                        var store = new GeoExt.data.FeatureStore({
+                            layer: this.vectorLayer,
+                            fields: fields
+                        });
+
+                    
+                        var grid = new Ext.grid.GridPanel({
+                            store: store,
+                            viewConfig: {
+                                // we add an horizontal scroll bar in case 
+                                // there are too many attributes to display:
+                                forceFit: (columns.length < 9)
                             },
-                            columns: columns
-                        }),
-                        sm: new GeoExt.grid.FeatureSelectionModel({
-                            selectControl: this.control,
-                            singleSelect: false
-                        }),
-                        title: OpenLayers.i18n(feature.type)
-                    });
-                    grid.getSelectionModel().on('rowdeselect', function (model, index, record) {
-                        record.getFeature().style = {display: 'none'};
-                    });
-                    grid.getSelectionModel().on('rowselect', function (model, index, record) {
-                        record.getFeature().style = OpenLayers.Feature.Vector.style['default'];
-                        record.getFeature().style.strokeWidth = 4;
-                    });
-                    grid.on('rowdblclick', function(gclickGrid, index) {
-                        var feature = store.getAt(index).getFeature();
-                        if (feature.bounds) {
-                            var center = feature.bounds.getCenterLonLat();
-                        } else if (feature.geometry) {
-                            var centroid = feature.geometry.getCentroid();
-                            center = new  OpenLayers.LonLat(centroid.x, centroid.y);
-                        }
-                        feature.layer.map.setCenter(center);
-                    }, this);
-                    // task to fix an ext bug ...
-                    var task = new Ext.util.DelayedTask(function() {
-                        var sm = this.currentGrid.getSelectionModel();
-                        sm.clearSelections();
-                        sm.selectFirstRow();
-                    }, this);
-                    grid.on('render', function(renderGrid) {
-                        if (this.currentGrid != null) {
-                            this.currentGrid.getSelectionModel().clearSelections();
-                        }
-                        this.currentGrid = renderGrid
-                        task.delay(200);
-                    }, this);
-                    this.gridByType[feature.type] = grid;
-                    this.tabpan.add(grid);
-                }
-                else {
-                    var grid = this.gridByType[feature.type];
-                    this.tabpan.unhideTabStripItem(grid);
+                            colModel: new Ext.grid.ColumnModel({
+                                defaults: {
+                                    sortable: true
+                                },
+                                columns: columns
+                            }),
+                            sm: new GeoExt.grid.FeatureSelectionModel({
+                                selectControl: this.control,
+                                singleSelect: false
+                            }),
+                            title: OpenLayers.i18n(feature.type)
+                        });
+                        grid.getSelectionModel().on('rowdeselect', function (model, index, record) {
+                            record.getFeature().style = {display: 'none'};
+                        });
+                        grid.getSelectionModel().on('rowselect', function (model, index, record) {
+                            record.getFeature().style = OpenLayers.Feature.Vector.style['default'];
+                            record.getFeature().style.strokeWidth = 4;
+                        });
+                        grid.on('rowdblclick', function(gclickGrid, index) {
+                            var feature = store.getAt(index).getFeature();
+                            if (feature.bounds) {
+                                var center = feature.bounds.getCenterLonLat();
+                            } else if (feature.geometry) {
+                                var centroid = feature.geometry.getCentroid();
+                                center = new  OpenLayers.LonLat(centroid.x, centroid.y);
+                            }
+                            feature.layer.map.setCenter(center);
+                        }, this);
+                        // task to fix an ext bug ...
+                        var task = new Ext.util.DelayedTask(function() {
+                            var sm = this.currentGrid.getSelectionModel();
+                            sm.clearSelections();
+                            sm.selectFirstRow();
+                        }, this);
+                        grid.on('render', function(renderGrid) {
+                            if (this.currentGrid != null) {
+                                this.currentGrid.getSelectionModel().clearSelections();
+                            }
+                            this.currentGrid = renderGrid
+                            task.delay(200);
+                        }, this);
+                        this.gridByType[feature.type] = grid;
+                        this.tabpan.add(grid);
+                    }
+                    else {
+                        var grid = this.gridByType[feature.type];
+                        this.tabpan.unhideTabStripItem(grid);
+                    }
                 }
             }
             this.vectorLayer.addFeatures(features);
